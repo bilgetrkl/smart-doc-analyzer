@@ -1,41 +1,35 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-import pdfplumber
-import io
+from fastapi import FastAPI
+from app.qa_module.router import router as qa_module_router
+# from app.sa_module.router import router as sa_router
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+app = FastAPI(
+    title="Smart Document Analyzer",
+    description="Question-Answering and Advanced Sentiment Analysis for PDF documents."
+)
+
+origins = [
+    "http://127.0.0.1:5500",  
+    "http://localhost:5500",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3001",
+    "http://localhost:3001",
+    "null",                 
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins, 
+    allow_credentials=True,
+    allow_methods=["*"],    
+    allow_headers=["*"],   
+)
 
 @app.get("/")
 def root():
-    return {"message": "Smart Doc Analyzer is running"}
+    return {"message": "Smart Document Analyzer is working"}
 
-@app.post("/upload-pdf-and-extract-text/")
-async def upload_pdf_and_extract(file: UploadFile = File(...)):
-    
-    # Is the uploaded file a PDF?
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Hata: Sadece PDF dosyaları kabul edilmektedir.")
+app.include_router(qa_module_router, prefix="/qa", tags=["Question Answering"])
 
-    try:
-        # Read the uploaded file as bytes
-        pdf_bytes = await file.read()
-        
-        # Transform bytes to a BytesIO stream for pdfplumber
-        with io.BytesIO(pdf_bytes) as pdf_stream:
-            # Open the PDF with pdfplumber
-            with pdfplumber.open(pdf_stream) as pdf:
-                
-                full_text = ""
-                # Extract text from each page
-                for page in pdf.pages:
-                    full_text += page.extract_text() + "\n" 
-                
-                # Return the extracted text
-                return {
-                    "filename": file.filename,
-                    "content_type": file.content_type,
-                    "extracted_text": full_text
-                }
-                
-    except Exception as e:
-        # Handle any exceptions that occur during PDF processing
-        raise HTTPException(status_code=500, detail=f"Metin çıkarma hatası: {str(e)}")
+# app.include_router(sa_module_router, prefix="/sentiment", tags=["Sentiment Analysis"])
