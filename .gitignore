@@ -1,3 +1,22 @@
-venv/
 
+# Python env
+env/
+venv/
+.venv/
 __pycache__/
+*.pyc
+
+# Frontend
+frontend/node_modules/
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log

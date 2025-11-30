@@ -3,9 +3,6 @@ import fitz
 from fastapi import UploadFile, HTTPException
 
 async def extract_text_from_pdf(file: UploadFile):
-    """
-    Reads a PDF file and extracts its text content using PyMuPDF (fitz).
-    """
     
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Hata: Sadece PDF dosyaları kabul edilmektedir.")

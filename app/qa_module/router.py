@@ -9,9 +9,6 @@ async def ask_question_from_pdf(
     question: str = Form(...), 
     file: UploadFile = File(...)
 ):
-    """
-    Upload a PDF file and ask a question about its content.
-    """
     
     try:
         context = await extract_text_from_pdf(file)

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.qa_module.router import router as qa_module_router
-# from app.sa_module.router import router as sa_router
+from app.sentiment_module.router import router as sentiment_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -31,5 +31,4 @@ def root():
     return {"message": "Smart Document Analyzer is working"}
 
 app.include_router(qa_module_router, prefix="/qa", tags=["Question Answering"])
-
-# app.include_router(sa_module_router, prefix="/sentiment", tags=["Sentiment Analysis"])
+app.include_router(sentiment_router)
