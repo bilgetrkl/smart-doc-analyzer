@@ -188,54 +188,71 @@ function App() {
 }
 
 export default App */
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 
 const API_BASE_URL = 'http://127.0.0.1:8000'
 
 function App() {
+  // File & chat state
   const [file, setFile] = useState(null)
+  const [messages, setMessages] = useState([]) // [{type: 'question'|'answer'|'error', text: '...'}]
   const [question, setQuestion] = useState('')
-  const [answer, setAnswer] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [conversationActive, setConversationActive] = useState(false)
 
-  // Feedback & sentiment-related state
+  // Feedback state (shown only after ending conversation)
   const [showFeedbackBox, setShowFeedbackBox] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackError, setFeedbackError] = useState('')
-  const [analysisResult, setAnalysisResult] = useState(null) // { sentiment: {...}, helpfulness: {...} }
+  const [analysisResult, setAnalysisResult] = useState(null)
 
   const [popupMessage, setPopupMessage] = useState('')
-  const [popupType, setPopupType] = useState('neutral') // 'positive' | 'negative' | 'neutral'
+  const [popupType, setPopupType] = useState('neutral')
   const [showPopup, setShowPopup] = useState(false)
+
+  const chatEndRef = useRef(null)
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile && selectedFile.type === 'application/pdf') {
       setFile(selectedFile)
-      setError('')
+      setMessages([])
+      setConversationActive(false)
+      setShowFeedbackBox(false)
     } else {
-      setError('Please select a valid PDF file.')
+      setMessages([{ type: 'error', text: 'Please select a valid PDF file.' }])
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!file || !question.trim()) {
-      setError('Please provide both a PDF file and a question.')
+  const startConversation = () => {
+    if (!file) {
+      setMessages([{ type: 'error', text: 'Please upload a PDF file first.' }])
       return
     }
-
-    setLoading(true)
-    setError('')
-    setAnswer('')
+    setConversationActive(true)
+    setMessages([])
     setShowFeedbackBox(false)
-    setFeedbackText('')
-    setAnalysisResult(null)
-    setFeedbackError('')
-    setShowPopup(false)
+  }
+
+  const endConversation = () => {
+    setConversationActive(false)
+    setShowFeedbackBox(true)
+  }
+
+  const handleQuestionSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!question.trim()) return
+
+    // Add user question to chat
+    setMessages((prev) => [...prev, { type: 'question', text: question }])
+    setLoading(true)
 
     const formData = new FormData()
     formData.append('file', file)
@@ -257,19 +274,21 @@ function App() {
       const data = await response.json()
 
       if (data.answer) {
-        setAnswer(data.answer)
-        setShowFeedbackBox(true)
+        setMessages((prev) => [...prev, { type: 'answer', text: data.answer }])
       } else if (data.error) {
-        setError(`Error: ${data.error}`)
+        setMessages((prev) => [...prev, { type: 'error', text: data.error }])
       } else {
-        setError('The expected response was not received from the API.')
+        setMessages((prev) => [
+          ...prev,
+          { type: 'error', text: 'Unexpected response from server.' }
+        ])
       }
-
     } catch (error) {
       console.error('Request Error:', error)
-      setError(`An error occurred: ${error.message}`)
+      setMessages((prev) => [...prev, { type: 'error', text: error.message }])
     } finally {
       setLoading(false)
+      setQuestion('')
     }
   }
 
@@ -303,13 +322,13 @@ function App() {
       const data = await response.json()
       setAnalysisResult(data)
 
-      // Decide popup message based on sentiment & helpfulness
+      // Determine popup message based on sentiment
       const sentimentLabel = data?.sentiment?.label || ''
       const sentimentScore = data?.sentiment?.score ?? 0
       const helpfulLabel = data?.helpfulness?.label || ''
       const helpfulScore = data?.helpfulness?.score ?? 0
 
-      let message = "Thank you for your feedback."
+      let message = 'Thank you for your feedback.'
       let type = 'neutral'
 
       const isClearlyPositive =
@@ -326,7 +345,8 @@ function App() {
         message = "Thank you for your feedback — we're glad the answer was helpful!"
         type = 'positive'
       } else if (isClearlyNegative) {
-        message = "Thanks for your feedback — we'll pay closer attention and work to improve future answers."
+        message =
+          "Thanks for your feedback — we'll work to improve future answers."
         type = 'negative'
       } else {
         message = "Thank you for your feedback. We'll use it to improve the system."
@@ -336,7 +356,6 @@ function App() {
       setPopupMessage(message)
       setPopupType(type)
       setShowPopup(true)
-
     } catch (error) {
       console.error('Feedback Error:', error)
       setFeedbackError(`An error occurred while analyzing feedback: ${error.message}`)
@@ -489,7 +508,7 @@ function App() {
     <div style={{ minHeight: '100vh', backgroundColor: '#dadadaff', padding: '20px' }}>
       <div
         style={{
-          maxWidth: '800px',
+          maxWidth: '900px',
           margin: '0 auto',
           backgroundColor: 'white',
           borderRadius: '15px',
@@ -511,13 +530,12 @@ function App() {
             Smart Document Analyzer
           </h1>
           <p style={{ color: '#7f8c8d', fontSize: '18px' }}>
-            Upload your PDF document, ask a question, and evaluate the answer with smart feedback.
+            Upload your PDF, chat with AI, and provide feedback at the end.
           </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ marginBottom: '30px' }}>
-          {/* File Upload */}
+        {/* File Upload Section */}
+        {!conversationActive && (
           <div style={{ marginBottom: '20px' }}>
             <label
               style={{
@@ -548,117 +566,155 @@ function App() {
                 ✅ {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
               </p>
             )}
-          </div>
-
-          {/* Question Input */}
-          <div style={{ marginBottom: '20px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '10px',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#333'
-              }}
-            >
-              Ask your question
-            </label>
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Example: What is the main topic of this document?"
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                minHeight: '100px',
-                resize: 'vertical',
-                fontSize: '16px'
-              }}
-            />
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || !file || !question.trim()}
-            style={{
-              width: '100%',
-              padding: '15px',
-              backgroundColor: loading ? '#bdc3c7' : '#34495e',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '18px',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            {loading ? 'Thinking...' : 'Ask Question'}
-          </button>
-        </form>
-
-        {/* Error Message */}
-        {error && (
-          <div
-            style={{
-              padding: '15px',
-              backgroundColor: '#f8d7da',
-              border: '1px solid #f5c6cb',
-              borderRadius: '8px',
-              color: '#721c24',
-              marginBottom: '20px'
-            }}
-          >
-            ❌ {error}
+            
+            {file && (
+              <button
+                onClick={startConversation}
+                style={{
+                  marginTop: '15px',
+                  width: '100%',
+                  padding: '15px',
+                  backgroundColor: '#27ae60',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Start Conversation
+              </button>
+            )}
           </div>
         )}
 
-        {/* Answer */}
-        {answer && (
-          <div
-            style={{
-              padding: '20px',
-              backgroundColor: '#d4edda',
-              border: '1px solid #c3e6cb',
-              borderRadius: '8px',
-              marginBottom: '20px'
-            }}
-          >
-            <h3 style={{ color: '#155724', marginBottom: '10px', fontSize: '18px' }}>
-              💡 Answer:
-            </h3>
-            <p
+        {/* Chat Area */}
+        {conversationActive && (
+          <div>
+            {/* Chat Messages */}
+            <div
               style={{
-                color: '#155724',
-                fontSize: '16px',
-                lineHeight: '1.6',
-                margin: 0,
-                whiteSpace: 'pre-wrap'
+                maxHeight: '400px',
+                overflowY: 'auto',
+                marginBottom: '20px',
+                padding: '15px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '10px',
+                border: '1px solid #e1e4e8'
               }}
             >
-              {answer}
-            </p>
+              {messages.length === 0 && (
+                <p style={{ textAlign: 'center', color: '#7f8c8d' }}>
+                  Start asking questions about your document...
+                </p>
+              )}
+              
+              {messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    marginBottom: '15px',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    backgroundColor:
+                      msg.type === 'question'
+                        ? '#e3f2fd'
+                        : msg.type === 'answer'
+                        ? '#e8f5e9'
+                        : '#ffebee',
+                    textAlign: msg.type === 'question' ? 'right' : 'left'
+                  }}
+                >
+                  <strong style={{ color: '#2c3e50', fontSize: '14px' }}>
+                    {msg.type === 'question' ? 'You' : msg.type === 'answer' ? 'AI' : 'Error'}:
+                  </strong>
+                  <p style={{ margin: '5px 0 0', color: '#34495e', fontSize: '15px' }}>
+                    {msg.text}
+                  </p>
+                </div>
+              ))}
+              
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Question Input Form */}
+            <form onSubmit={handleQuestionSubmit} style={{ marginBottom: '15px' }}>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Type your question here..."
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  minHeight: '80px',
+                  resize: 'vertical',
+                  fontSize: '16px',
+                  marginBottom: '10px'
+                }}
+              />
+              
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="submit"
+                  disabled={loading || !question.trim()}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: loading ? '#bdc3c7' : '#3498db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {loading ? 'Thinking...' : 'Send Question'}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={endConversation}
+                  disabled={loading}
+                  style={{
+                    padding: '12px 20px',
+                    backgroundColor: '#e74c3c',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  End Conversation
+                </button>
+              </div>
+            </form>
           </div>
         )}
 
-        {/* Feedback Box */}
+        {/* Feedback Section (Only after ending conversation) */}
         {showFeedbackBox && (
           <div
             style={{
-              marginTop: '20px',
-              padding: '20px',
+              marginTop: '30px',
+              padding: '25px',
               borderRadius: '12px',
-              border: '1px solid #e1e4e8',
-              backgroundColor: '#fdfdfd'
+              border: '2px solid #3498db',
+              backgroundColor: '#f8fbfd'
             }}
           >
-            <h3 style={{ marginBottom: '10px', color: '#2c3e50' }}>Rate this answer</h3>
-            <p style={{ marginTop: 0, marginBottom: '10px', color: '#7f8c8d', fontSize: '14px' }}>
-              Please share your feedback about the generated answer. We will analyze it for sentiment
-              and helpfulness.
+            <h3 style={{ marginBottom: '10px', color: '#2c3e50', fontSize: '22px' }}>
+              💬 Rate Your Experience
+            </h3>
+            <p style={{ marginTop: 0, marginBottom: '15px', color: '#7f8c8d', fontSize: '14px' }}>
+              Please share your overall feedback about the conversation. We'll analyze it for
+              sentiment and helpfulness.
             </p>
 
             <form onSubmit={handleFeedbackSubmit}>
@@ -668,13 +724,13 @@ function App() {
                 placeholder="Write your feedback here..."
                 style={{
                   width: '100%',
-                  padding: '10px',
+                  padding: '12px',
                   borderRadius: '8px',
                   border: '1px solid #ddd',
-                  minHeight: '80px',
+                  minHeight: '100px',
                   resize: 'vertical',
-                  fontSize: '14px',
-                  marginBottom: '10px'
+                  fontSize: '15px',
+                  marginBottom: '12px'
                 }}
               />
 
@@ -682,40 +738,39 @@ function App() {
                 type="submit"
                 disabled={feedbackLoading || !feedbackText.trim()}
                 style={{
-                  padding: '10px 18px',
+                  padding: '12px 24px',
                   backgroundColor: feedbackLoading ? '#bdc3c7' : '#2980b9',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
-                  fontSize: '15px',
+                  fontSize: '16px',
                   fontWeight: '600',
-                  cursor: feedbackLoading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease'
+                  cursor: feedbackLoading ? 'not-allowed' : 'pointer'
                 }}
               >
-                {feedbackLoading ? 'Analyzing feedback...' : 'Analyze feedback'}
+                {feedbackLoading ? 'Analyzing feedback...' : 'Submit Feedback'}
               </button>
             </form>
 
             {feedbackError && (
               <div
                 style={{
-                  marginTop: '10px',
-                  padding: '10px',
+                  marginTop: '12px',
+                  padding: '12px',
                   backgroundColor: '#f8d7da',
                   border: '1px solid #f5c6cb',
                   borderRadius: '8px',
                   color: '#721c24',
-                  fontSize: '13px'
+                  fontSize: '14px'
                 }}
               >
                 ❌ {feedbackError}
               </div>
             )}
 
-            {/* Ranking visualizations */}
+            {/* Analysis Results */}
             {analysisResult && (
-              <div style={{ marginTop: '15px' }}>
+              <div style={{ marginTop: '20px' }}>
                 {renderSentimentRanking()}
                 {renderHelpfulnessRanking()}
                 {renderPopup()}
