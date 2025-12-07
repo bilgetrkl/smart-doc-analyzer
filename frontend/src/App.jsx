@@ -453,6 +453,15 @@ function App() {
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  // Submit on Enter, allow Shift+Enter for new line
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (!loading && question.trim()) {
+                      handleQuestionSubmit(e)
+                    }
+                  }
+                }}
                 placeholder="Type your question here..."
                 disabled={loading}
                 style={{
@@ -498,7 +507,7 @@ function App() {
                     borderRadius: '8px',
                     fontSize: '16px',
                     fontWeight: '600',
-                    cursor: 'pointer'
+                    cursor: loading ? 'not-allowed' : 'pointer'
                   }}
                 >
                   End Conversation
@@ -520,7 +529,7 @@ function App() {
             }}
           >
             <h3 style={{ marginBottom: '10px', color: '#2c3e50', fontSize: '22px' }}>
-              💬 Rate Your Experience
+              Rate Your Experience
             </h3>
             <p style={{ marginTop: 0, marginBottom: '15px', color: '#7f8c8d', fontSize: '14px' }}>
               Please share your overall feedback about the conversation. We'll analyze it for

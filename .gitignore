@@ -17,6 +17,3 @@ frontend/.vite/
 Thumbs.db
 .idea/
 .vscode/
-
-# Logs
-*.log
