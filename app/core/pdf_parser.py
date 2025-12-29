@@ -4,12 +4,7 @@ import re
 from fastapi import UploadFile, HTTPException
 
 async def extract_text_from_pdf(file: UploadFile):
-    """
-    Extract clean text from PDF by:
-    1. Removing text from images and vector drawings (diagrams)
-    2. Merging hyphenated line breaks
-    3. Cleaning headers and footers
-    """
+    
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Error: Only PDF files are accepted.")
 

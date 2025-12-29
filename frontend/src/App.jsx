@@ -23,7 +23,6 @@ function App() {
 
   const chatEndRef = useRef(null)
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -60,7 +59,6 @@ function App() {
 
     if (!question.trim()) return
 
-    // Add user question to chat
     setMessages((prev) => [...prev, { type: 'question', text: question }])
     setLoading(true)
 
@@ -132,7 +130,6 @@ function App() {
       const data = await response.json()
       setAnalysisResult(data)
 
-      // Determine popup message based on sentiment
       const sentimentLabel = data?.sentiment?.label || ''
       const sentimentScore = data?.sentiment?.score ?? 0
       const helpfulLabel = data?.helpfulness?.label || ''
@@ -174,16 +171,12 @@ function App() {
     }
   }
 
-  // Helpers for rendering ranking bars
   const renderSentimentRanking = () => {
     if (!analysisResult?.sentiment) return null
 
     const label = analysisResult.sentiment.label || ''
     const score = analysisResult.sentiment.score ?? 0
 
-    // We assume `score` is the probability of the predicted label.
-    // If label is Positive: positive = score, negative = 1 - score
-    // If label is Negative: negative = score, positive = 1 - score
     let positive = 0
     let negative = 0
     if (label.toLowerCase().includes('positive')) {
